@@ -52,4 +52,4 @@ def clear_state_program():
     return compileTeal(Approve(), Mode.Application, version=5)
 
 # print(approval_program())
-print(clear_state_program())
+# print(clear_state_program())
