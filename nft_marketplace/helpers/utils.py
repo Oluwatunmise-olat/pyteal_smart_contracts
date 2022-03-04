@@ -69,7 +69,37 @@ class NftAsc(InftMarketPlace):
         )
 
     def initialize_escrow(self):
-        pass
+        escrow_address = App.globalGet(self.GlobalVar.escrow_address) 
+
+        asset_escrow = AssetParam.clawback(Txn.assets[0])
+        manager_address = AssetParam.manager(Txn.assets[0])
+        freeze_address = AssetParam.freeze(Txn.assets[0])
+        reserve_address = AssetParam.reserve(Txn.assets[0])
+        default_frozen = AssetParam.defaultFrozen(Txn.assets[0])
+
+        return Seq([
+            escrow_address,
+            Assert(escrow_address.hasValue() == Int(0)), # not yet set
+
+            Assert(App.globalGet(self.GlobalVar.app_admin) == Txn.sender()),
+            Assert(Global.group_size() == Int(1)),
+
+            asset_escrow,
+            manager_address,
+            freeze_address,
+            reserve_address,
+            default_frozen,
+            Assert(Txn.assets[0] == App.globalGet(self.GlobalVar.asa_id)), #valid nft
+            Assert(asset_escrow.value() == Txn.application_args[1]),
+            Assert(default_frozen.value()),
+            Assert(manager_address.value() == Global.zero_address()),
+            Assert(freeze_address.value() == Global.zero_address()),
+            Assert(reserve_address.value() == Global.zero_address()),
+
+            App.globalPut(self.GlobalVar.escrow_address, escrow_address),
+            App.globalPut(self.GlobalVar.app_state, self.AppState.active),
+            Approve()
+        ])
 
     def make_sell_offer(self, sellprice):
         return Seq(
