@@ -66,11 +66,12 @@ class NftAsc(InftMarketPlace):
         return Seq(
             [
                 Assert(Txn.application_args.length() == Int(0)),
-                App.globalPut(self.GlobalVar.app_admin, Txn.sender()),
-                App.globalPut(self.GlobalVar.app_state, Txn.application_args[1]),
+                App.globalPut(self.GlobalVar.app_admin, Txn.application_args[1]),
+                App.globalPut(self.GlobalVar.app_state, self.AppState.not_initialized),
                 App.globalPut(self.GlobalVar.asa_id, Txn.assets[0]),
                 App.globalPut(self.GlobalVar.asa_owner, Txn.application_args[0]),
             ]
         )
+
 
 
