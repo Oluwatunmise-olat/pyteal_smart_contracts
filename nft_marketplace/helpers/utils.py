@@ -2,6 +2,9 @@ from abc import ABC, abstractmethod
 from pyteal import *
 from algosdk.future import transaction
 
+# we could also use inner transaction so that the smartContract is
+# the escrow and it stores the nft and sends upon payment
+
 
 class InftMarketPlace(ABC):
 
@@ -42,18 +45,6 @@ class NftAsc(InftMarketPlace):
         active = Int(1)
         selling_in_progress = Int(2)
 
-    def initialize_escrow(self, escrow_address):
-        pass
-
-    def make_sell_offer(self, sellprice):
-        pass
-
-    def buy(sell):
-        pass
-
-    def stop_sell_offer(sell):
-        pass
-
     @property
     def global_schema(self):
         return transaction.StateSchema(num_units=3, num_byte_slices=3)
@@ -88,14 +79,55 @@ class NftAsc(InftMarketPlace):
                     Txn.application_args.length() == Int(2)
                 )),
                 Assert(Or(
-                    App.globalGet(self.GlobalVar.app_state) == self.AppState.active,
-                    App.globalGet(self.GlobalVar.app_state) == self.AppState.selling_in_progress,
+                    App.globalGet(
+                        self.GlobalVar.app_state) == self.AppState.active,
+                    App.globalGet(
+                        self.GlobalVar.app_state) == self.AppState.selling_in_progress,
                 )),
                 App.globalPut(self.GlobalVar.asa_price, Btoi(sellprice)),
-                App.globalPut(self.GlobalVar.app_state, self.AppState.selling_in_progress),
+                App.globalPut(self.GlobalVar.app_state,
+                              self.AppState.selling_in_progress),
                 Approve()
             ]
         )
+
+    def buy(self):
+        return Seq(
+            Assert(And(
+                App.globalGet(self.GlobalVar.app_state,
+                              self.AppState.selling_in_progress),
+                Global.group_size() == Int(3),
+                Txn.group_index() == Int(0),  # we are the first addr in d array calling this contract
+                Gtxn[1].type_enum() == TxnType.Payment,
+                Gtxn[1].receiver() == App.globalGet(self.GlobalVar.asa_owner),
+                Gtxn[1].amount() == App.globalGet(self.GlobalVar.asa_price),
+                Gtxn[0].sender() == Gtxn[1].sender(),
+                # sender of payment txn is d receiver of nft
+                Gtxn[1].sender() == Gtxn[2].asset_receiver(),
+
+                Gtxn[2].type_enum() == TxnType.AssetTransfer,
+                Gtxn[2].sender() == App.globalGet(
+                    self.GlobalVar.escrow_address),
+                Gtxn[2].xfer_asset() == App.globalGet(self.GlobalVar.asa_id),
+                Gtxn[2].asset_amount() == Int(1)
+            )),
+
+            App.globalPut(self.GlobalVar.app_owner, Gtxn[1].sender()),
+            App.globalPut(self.GlobalVar.app_state, self.AppState.active),
+            Approve()
+        )
+
+    def stop_sell_offer(self):
+        return Seq([
+            Assert(
+                And(
+                    Global.group_size() == Int(1),
+                    Txn.sender() == App.globalGet(self.GlobalVar.asa_owner),
+                    App.globalGet(self.GlobalVar.app_state != self.AppState.not_initialized)
+                )),
+            App.globalPut(self.GlobalVar.app_state, self.AppState.active),
+            Approve()
+        ])
 
     def nft_escrow(app_id, asa_id):
         return Seq([
